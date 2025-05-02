@@ -79,26 +79,32 @@ class HttpTransporter implements Transporter
         if ($response->getStatusCode() < 400) {
             return;
         }
-
+    
         // Only handle JSON content types...
         if (! str_contains($response->getHeaderLine('Content-Type'), 'application/json')) {
             return;
         }
-
+    
         try {
             $response = json_decode($contents, true, 512, JSON_THROW_ON_ERROR);
-
-            if (
-                isset($response['error']) ||
-                $this->isResendError($response['name'])
-            ) {
-                throw new ErrorException($response['error'] ?? $response);
+    
+            if (isset($response['error'])) {
+                throw new ErrorException($response['error']);
+            }
+            
+            if (isset($response['name']) && $this->isResendError($response['name'])) {
+                // Create a properly formatted error array when no error property exists
+                $errorData = [
+                    'message' => $response['message'] ?? 'Unknown error',
+                    'type' => $response['name'],
+                    'code' => $response['status'] ?? 0
+                ];
+                throw new ErrorException($errorData);
             }
         } catch (JsonException $jsonException) {
             throw new UnserializableResponse($jsonException);
         }
     }
-
     /**
      * Determine if the given error name is a Resend error.
      */
